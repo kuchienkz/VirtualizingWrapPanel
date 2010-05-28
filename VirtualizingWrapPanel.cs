@@ -11,27 +11,10 @@ using System.ComponentModel;
 using System.Windows.Input;
 using System.Collections.ObjectModel;
 
-namespace VirtualizingWrapPanel
+namespace MyWinCollection
 {
     public class VirtualizingWrapPanel : VirtualizingPanel, IScrollInfo
     {
-
-        public VirtualizingWrapPanel()
-        {
-            this.SizeChanged += new SizeChangedEventHandler(this.Resize);
-
-        }
-
-        private void Resize(object sender, EventArgs e)
-        {
-
-            if (_viewport.Width != 0)
-            {
-                OnItemsChanged(sender, null);
-                MeasureOverride(new Size(_viewport.Width, _viewport.Height));
-            }
-        }
-
 
         #region Fields
 
@@ -41,6 +24,8 @@ namespace VirtualizingWrapPanel
         private Point _offset = new Point(0, 0);
         private Size _extent = new Size(0, 0);
         private Size _viewport = new Size(0, 0);
+        private int firstIndex=0;
+        private Size childSize;
         private Size _pixelMeasuredViewport = new Size(0, 0);
         Dictionary<UIElement, Rect> _realizedChildLayout = new Dictionary<UIElement, Rect>();
         WrapPanelAbstraction _abstractPanel;
@@ -101,6 +86,24 @@ namespace VirtualizingWrapPanel
         #endregion
 
         #region Methods
+
+        public void SetFirstRowViewItemIndex(int index)
+        {
+            SetVerticalOffset((index) / Math.Floor((_viewport.Width) / childSize.Width));
+            SetHorizontalOffset((index) / Math.Floor((_viewport.Height) / childSize.Height));
+        }
+
+        private void Resizing(object sender, EventArgs e)
+        {
+            if (_viewport.Width != 0)
+            {
+                int firstIndexCache = firstIndex;
+                _abstractPanel = null;
+                MeasureOverride(_viewport);
+                SetFirstRowViewItemIndex(firstIndex);
+                firstIndex = firstIndexCache;               
+            }
+        }
 
         public int GetFirstVisibleSection()
         {
@@ -208,6 +211,13 @@ namespace VirtualizingWrapPanel
             var gen = _generator.GetItemContainerGeneratorForPanel(this);
             UIElement selected = (UIElement)Keyboard.FocusedElement;
             int itemIndex = gen.IndexFromContainer(selected);
+            int depth = 0;
+            while (itemIndex == -1)
+            {
+                selected = (UIElement)VisualTreeHelper.GetParent(selected);
+                itemIndex = gen.IndexFromContainer(selected);
+                depth++;
+            }
             DependencyObject next = null;
             if (Orientation == Orientation.Horizontal)
             {
@@ -232,14 +242,27 @@ namespace VirtualizingWrapPanel
                     next = gen.ContainerFromIndex(itemIndex + 1);
                 }
             }
+            while (depth != 0)
+            {
+                next = VisualTreeHelper.GetChild(next, 0);
+                depth--;
+            }
             (next as UIElement).Focus();
         }
 
         private void NavigateLeft()
         {
             var gen = _generator.GetItemContainerGeneratorForPanel(this);
+
             UIElement selected = (UIElement)Keyboard.FocusedElement;
             int itemIndex = gen.IndexFromContainer(selected);
+            int depth = 0;
+            while (itemIndex == -1)
+            {
+                selected = (UIElement)VisualTreeHelper.GetParent(selected);
+                itemIndex = gen.IndexFromContainer(selected);
+                depth++;
+            }
             DependencyObject next = null;
             if (Orientation == Orientation.Vertical)
             {
@@ -263,6 +286,11 @@ namespace VirtualizingWrapPanel
                     UpdateLayout();
                     next = gen.ContainerFromIndex(itemIndex - 1);
                 }
+            }
+            while (depth != 0)
+            {
+                next = VisualTreeHelper.GetChild(next, 0);
+                depth--;
             }
             (next as UIElement).Focus();
         }
@@ -272,6 +300,13 @@ namespace VirtualizingWrapPanel
             var gen = _generator.GetItemContainerGeneratorForPanel(this);
             UIElement selected = (UIElement)Keyboard.FocusedElement;
             int itemIndex = gen.IndexFromContainer(selected);
+            int depth = 0;
+            while (itemIndex == -1)
+            {
+                selected = (UIElement)VisualTreeHelper.GetParent(selected);
+                itemIndex = gen.IndexFromContainer(selected);
+                depth++;
+            }
             DependencyObject next = null;
             if (Orientation == Orientation.Vertical)
             {
@@ -296,6 +331,11 @@ namespace VirtualizingWrapPanel
                     next = gen.ContainerFromIndex(itemIndex + 1);
                 }
             }
+            while (depth != 0)
+            {
+                next = VisualTreeHelper.GetChild(next, 0);
+                depth--;
+            }
             (next as UIElement).Focus();
         }
 
@@ -304,6 +344,13 @@ namespace VirtualizingWrapPanel
             var gen = _generator.GetItemContainerGeneratorForPanel(this);
             UIElement selected = (UIElement)Keyboard.FocusedElement;
             int itemIndex = gen.IndexFromContainer(selected);
+            int depth = 0;
+            while (itemIndex == -1)
+            {
+                selected = (UIElement)VisualTreeHelper.GetParent(selected);
+                itemIndex = gen.IndexFromContainer(selected);
+                depth++;
+            }
             DependencyObject next = null;
             if (Orientation == Orientation.Horizontal)
             {
@@ -327,6 +374,11 @@ namespace VirtualizingWrapPanel
                     UpdateLayout();
                     next = gen.ContainerFromIndex(itemIndex - 1);
                 }
+            }
+            while (depth != 0)
+            {
+                next = VisualTreeHelper.GetChild(next, 0);
+                depth--;
             }
             (next as UIElement).Focus();
         }
@@ -372,6 +424,7 @@ namespace VirtualizingWrapPanel
 
         protected override void OnInitialized(EventArgs e)
         {
+            this.SizeChanged += new SizeChangedEventHandler(this.Resizing);
             base.OnInitialized(e);
             _itemsControl = ItemsControl.GetItemsOwner(this);
             _children = InternalChildren;
@@ -411,22 +464,19 @@ namespace VirtualizingWrapPanel
                 {
                     bool newlyRealized;
 
-                    // Get or create the child
+                    // Get or create the child                    
                     UIElement child = _generator.GenerateNext(out newlyRealized) as UIElement;
                     if (newlyRealized)
                     {
                         // Figure out if we need to insert the child at the end or somewhere in the middle
                         if (childIndex >= _children.Count)
                         {
-
                             base.AddInternalChild(child);
                         }
                         else
                         {
-
                             base.InsertInternalChild(childIndex, child);
                         }
-
                         _generator.PrepareItemContainer(child);
                         child.Measure(ChildSlotSize);
                     }
@@ -435,7 +485,7 @@ namespace VirtualizingWrapPanel
                         // The child has already been created, let's be sure it's in the right spot
                         Debug.Assert(child == _children[childIndex], "Wrong child was generated");
                     }
-                    Size childSize = child.DesiredSize;
+                    childSize = child.DesiredSize;
                     Rect childRect = new Rect(new Point(currentX, currentY), childSize);
                     if (isHorizontal)
                     {
@@ -471,9 +521,7 @@ namespace VirtualizingWrapPanel
                             stop = true;
                         currentY = childRect.Bottom;
                     }
-
-                    if (child != null)
-                        _realizedChildLayout.Add(child, childRect);
+                    _realizedChildLayout.Add(child, childRect);
                     _abstractPanel.SetItemSection(current, currentSection);
 
                     if (stop)
@@ -481,23 +529,19 @@ namespace VirtualizingWrapPanel
                     current++;
                     childIndex++;
                 }
-
             }
-
             CleanUpItems(firstVisibleIndex, current - 1);
 
             ComputeExtentAndViewport(availableSize, visibleSections);
 
             return availableSize;
         }
-
         protected override Size ArrangeOverride(Size finalSize)
         {
             if (_children != null)
             {
                 foreach (UIElement child in _children)
                 {
-
                     var layoutInfo = _realizedChildLayout[child];
                     child.Arrange(layoutInfo);
                 }
@@ -577,16 +621,16 @@ namespace VirtualizingWrapPanel
 
         public Rect MakeVisible(Visual visual, Rect rectangle)
         {
-            var gen = _generator.GetItemContainerGeneratorForPanel(this);
+            var gen = (ItemContainerGenerator)_generator.GetItemContainerGeneratorForPanel(this);
             var element = (UIElement)visual;
             int itemIndex = gen.IndexFromContainer(element);
-            Rect elementRect = new Rect();
-            if (itemIndex >= 0)
+            while (itemIndex == -1)
             {
-                int section = _abstractPanel[itemIndex].Section;
-                elementRect = _realizedChildLayout[element];
+                element = (UIElement)VisualTreeHelper.GetParent(element);
+                itemIndex = gen.IndexFromContainer(element);
             }
-  
+            int section = _abstractPanel[itemIndex].Section;
+            Rect elementRect = _realizedChildLayout[element];
             if (Orientation == Orientation.Horizontal)
             {
                 double viewportHeight = _pixelMeasuredViewport.Height;
@@ -605,7 +649,6 @@ namespace VirtualizingWrapPanel
             }
             InvalidateMeasure();
             return elementRect;
-
         }
 
         public void MouseWheelDown()
@@ -635,12 +678,12 @@ namespace VirtualizingWrapPanel
 
         public void PageLeft()
         {
-            SetHorizontalOffset(HorizontalOffset - (_extent.Width * 0.2));
+            SetHorizontalOffset(HorizontalOffset - _viewport.Width * 0.8);
         }
 
         public void PageRight()
         {
-            SetHorizontalOffset(HorizontalOffset + (_extent.Width * 0.2));
+            SetHorizontalOffset(HorizontalOffset + _viewport.Width * 0.8);
         }
 
         public void PageUp()
@@ -675,6 +718,7 @@ namespace VirtualizingWrapPanel
                 _owner.InvalidateScrollInfo();
 
             InvalidateMeasure();
+            firstIndex = GetFirstVisibleIndex();
         }
 
         public void SetVerticalOffset(double offset)
@@ -699,6 +743,7 @@ namespace VirtualizingWrapPanel
             //_trans.Y = -offset;
 
             InvalidateMeasure();
+            firstIndex = GetFirstVisibleIndex();
         }
 
         public double ViewportHeight
