@@ -24,7 +24,7 @@ namespace MyWinCollection
         private Point _offset = new Point(0, 0);
         private Size _extent = new Size(0, 0);
         private Size _viewport = new Size(0, 0);
-        private int firstIndex=0;
+        private int firstIndex = 0;
         private Size childSize;
         private Size _pixelMeasuredViewport = new Size(0, 0);
         Dictionary<UIElement, Rect> _realizedChildLayout = new Dictionary<UIElement, Rect>();
@@ -87,13 +87,13 @@ namespace MyWinCollection
 
         #region Methods
 
-        public void SetFirstRowViewItemIndex(int index)
+        private void SetFirstRowViewItemIndex(int index)
         {
             SetVerticalOffset((index) / Math.Floor((_viewport.Width) / childSize.Width));
             SetHorizontalOffset((index) / Math.Floor((_viewport.Height) / childSize.Height));
         }
 
-        private void Resizing(object sender, EventArgs e)
+        public void Resizing(object sender, EventArgs e)
         {
             if (_viewport.Width != 0)
             {
@@ -101,14 +101,18 @@ namespace MyWinCollection
                 _abstractPanel = null;
                 MeasureOverride(_viewport);
                 SetFirstRowViewItemIndex(firstIndex);
-                firstIndex = firstIndexCache;               
+                firstIndex = firstIndexCache;
             }
         }
 
         public int GetFirstVisibleSection()
         {
             int section;
-            var maxSection = _abstractPanel.Max(x => x.Section);
+            var maxSection = 0;
+            if (_abstractPanel != null)
+            {
+                maxSection = _abstractPanel.Max(x => x.Section);
+            }
             if (Orientation == Orientation.Horizontal)
             {
                 section = (int)_offset.Y;
@@ -125,13 +129,17 @@ namespace MyWinCollection
         public int GetFirstVisibleIndex()
         {
             int section = GetFirstVisibleSection();
-            var item = _abstractPanel.Where(x => x.Section == section).FirstOrDefault();
-            if (item != null)
-                return item._index;
+
+            if (_abstractPanel != null)
+            {
+                var item = _abstractPanel.Where(x => x.Section == section).FirstOrDefault();
+                if (item != null)
+                    return item._index;
+            }
             return 0;
         }
 
-        private void CleanUpItems(int minDesiredGenerated, int maxDesiredGenerated)
+        public void CleanUpItems(int minDesiredGenerated, int maxDesiredGenerated)
         {
             for (int i = _children.Count - 1; i >= 0; i--)
             {
@@ -424,11 +432,11 @@ namespace MyWinCollection
 
         protected override void OnInitialized(EventArgs e)
         {
-            this.SizeChanged += new SizeChangedEventHandler(this.Resizing);
             base.OnInitialized(e);
             _itemsControl = ItemsControl.GetItemsOwner(this);
             _children = InternalChildren;
             _generator = ItemContainerGenerator;
+            this.SizeChanged += new SizeChangedEventHandler(this.Resizing);
         }
 
         protected override Size MeasureOverride(Size availableSize)
